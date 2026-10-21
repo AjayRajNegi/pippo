@@ -1,7 +1,7 @@
 {
-  "name": "pippo",
-  "displayName": "pippo",
-  "description": "",
+  "name": "droid-companion",
+  "displayName": "Droid Companion",
+  "description": "A calm, friendly VS Code companion for personal well-being and repository organization.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.140.0"
@@ -9,33 +9,61 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:droidCompanion"
+  ],
   "main": "./out/extension.js",
   "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "droidCompanion",
+          "name": "Droid Companion",
+          "type": "webview"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "p.helloWorld",
-        "title": "pippo"
+        "command": "droidCompanion.helloWorld",
+        "title": "Droid Companion: Hello World"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Droid Companion",
+      "properties": {
+        "droidCompanion.telemetry.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable optional product usage telemetry (requires VS Code telemetry to also be enabled)."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
+    "compile": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run lint && npm run format --check && tsc --noEmit && npm run test && npm run compile"
   },
   "devDependencies": {
+    "@types/node": "20.x",
     "@types/vscode": "^1.140.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "24.x",
-    "typescript-eslint": "^8.61.1",
-    "eslint": "^10.5.0",
-    "typescript": "^6.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.72.0",
+    "@typescript-eslint/parser": "^8.72.0",
     "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^3.0.0"
+    "@vscode/test-electron": "^3.0.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-prettier": "^5.5.7",
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^2.1.0"
   },
   "overrides": {
     "diff": "^8.0.4",

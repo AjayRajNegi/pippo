@@ -1,26 +1,67 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+/**
+ * Droid Companion - Extension Entry Point
+ * Composition root: activates features and registers providers/commands.
+ */
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
+import type * as vscode from "vscode";
+import { createWebviewProvider } from "./companion/webview-provider";
+import { eventBus } from "./core/event-bus";
+import { initializeRepository } from "./features/repository/index";
+import { initializeTelemetry } from "./features/telemetry/index";
+// Feature initializers (to be implemented)
+import { initializeWellbeing } from "./features/wellbeing/index";
+import { createPlatformAdapter } from "./platform/vscode";
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "p" is now active!');
+export function activate(context: vscode.ExtensionContext): void {
+	console.log("[DroidCompanion] Activating extension...");
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('p.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from /!');
-	});
+	const platform = createPlatformAdapter(context);
+	const disposables: vscode.Disposable[] = [];
 
-	context.subscriptions.push(disposable);
+	// Register webview view provider
+	const webviewProvider = createWebviewProvider(context.extensionUri);
+	disposables.push(
+		platform.window.registerWebviewViewProvider(
+			"droidCompanion",
+			webviewProvider,
+		),
+	);
+
+	// Register commands
+	disposables.push(
+		platform.commands.registerCommand("droidCompanion.helloWorld", () => {
+			platform.window.showInformationMessage("Hello from Droid Companion!");
+		}),
+	);
+
+	// Initialize features
+	const wellbeingDisposables = initializeWellbeing(platform, webviewProvider);
+	const repositoryDisposables = initializeRepository(platform, webviewProvider);
+	const telemetryDisposables = initializeTelemetry(platform);
+
+	disposables.push(
+		...wellbeingDisposables,
+		...repositoryDisposables,
+		...telemetryDisposables,
+	);
+
+	// Handle telemetry changes
+	disposables.push(
+		platform.telemetry.onDidChangeTelemetryEnabled((enabled) => {
+			eventBus.emit("telemetry:enabledChanged", enabled);
+		}),
+	);
+
+	// Add all disposables to context
+	for (const d of disposables) {
+		context.subscriptions.push(d);
+	}
+
+	console.log("[DroidCompanion] Extension activated");
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate(): void {
+	console.log("[DroidCompanion] Deactivating extension...");
+	eventBus.clear();
+	console.log("[DroidCompanion] Extension deactivated");
+}
