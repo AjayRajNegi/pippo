@@ -7,58 +7,58 @@ import * as vscode from "vscode";
 
 // Mock VS Code API
 vi.mock("vscode", () => ({
-  ExtensionContext: vi.fn(),
-  workspace: {
-    getConfiguration: vi.fn(() => ({
-      get: vi.fn((key: string, defaultValue: unknown) => defaultValue),
-      update: vi.fn(),
-      onDidChange: vi.fn(),
-    })),
-    workspaceFolders: undefined,
-    onDidChangeWorkspaceFolders: vi.fn(),
-    onDidChangeConfiguration: vi.fn(),
-    fs: {
-      readFile: vi.fn(),
-      writeFile: vi.fn(),
-      delete: vi.fn(),
-      stat: vi.fn(),
-      readDirectory: vi.fn(),
-    },
-  },
-  window: {
-    activeTextEditor: undefined,
-    showInformationMessage: vi.fn(),
-    showWarningMessage: vi.fn(),
-    showErrorMessage: vi.fn(),
-    showQuickPick: vi.fn(),
-    withProgress: vi.fn(),
-    onDidChangeActiveTextEditor: vi.fn(),
-    onDidChangeTextEditorSelection: vi.fn(),
-    onDidChangeTextEditorVisibleRanges: vi.fn(),
-    registerWebviewViewProvider: vi.fn(),
-  },
-  commands: {
-    registerCommand: vi.fn(),
-    executeCommand: vi.fn(),
-  },
-  env: {
-    isTelemetryEnabled: false,
-    onDidChangeTelemetryEnabled: vi.fn(),
-  },
-  Uri: {
-    joinPath: vi.fn((...args: string[]) => ({
-      fsPath: args.join("/"),
-      toString: () => args.join("/"),
-    })),
-  },
-  Disposable: vi.fn(),
-  ConfigurationTarget: {
-    Global: 1,
-  },
-  FileType: {
-    File: 1,
-    Directory: 2,
-  },
+	ExtensionContext: vi.fn(),
+	workspace: {
+		getConfiguration: vi.fn(() => ({
+			get: vi.fn((key: string, defaultValue: unknown) => defaultValue),
+			update: vi.fn(),
+			onDidChange: vi.fn(),
+		})),
+		workspaceFolders: undefined,
+		onDidChangeWorkspaceFolders: vi.fn(),
+		onDidChangeConfiguration: vi.fn(),
+		fs: {
+			readFile: vi.fn(),
+			writeFile: vi.fn(),
+			delete: vi.fn(),
+			stat: vi.fn(),
+			readDirectory: vi.fn(),
+		},
+	},
+	window: {
+		activeTextEditor: undefined,
+		showInformationMessage: vi.fn(),
+		showWarningMessage: vi.fn(),
+		showErrorMessage: vi.fn(),
+		showQuickPick: vi.fn(),
+		withProgress: vi.fn(),
+		onDidChangeActiveTextEditor: vi.fn(),
+		onDidChangeTextEditorSelection: vi.fn(),
+		onDidChangeTextEditorVisibleRanges: vi.fn(),
+		registerWebviewViewProvider: vi.fn(),
+	},
+	commands: {
+		registerCommand: vi.fn(),
+		executeCommand: vi.fn(),
+	},
+	env: {
+		isTelemetryEnabled: false,
+		onDidChangeTelemetryEnabled: vi.fn(),
+	},
+	Uri: {
+		joinPath: vi.fn((...args: string[]) => ({
+			fsPath: args.join("/"),
+			toString: () => args.join("/"),
+		})),
+	},
+	Disposable: vi.fn(),
+	ConfigurationTarget: {
+		Global: 1,
+	},
+	FileType: {
+		File: 1,
+		Directory: 2,
+	},
 }));
 
 describe("Extension Activation", () => {

@@ -58,9 +58,6 @@
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.0.0",
     "esbuild": "^0.24.0",
-    "eslint": "^9.0.0",
-    "eslint-plugin-prettier": "^5.5.7",
-    "prettier": "^3.3.0",
     "typescript": "^5.6.0",
     "typescript-eslint": "^8.72.0",
     "vitest": "^2.1.0"
@@ -68,5 +65,8 @@
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
   }
 }

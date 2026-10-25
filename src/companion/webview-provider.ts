@@ -91,7 +91,9 @@ export function createWebviewProvider(
   }
 
   function sendInitialState(): void {
-    if (!currentState) return;
+    if (!currentState) {
+      return;
+    }
     const msg: InitialStateMessage = {
       version: MESSAGE_PROTOCOL_VERSION,
       type: "initialState",

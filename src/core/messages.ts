@@ -337,7 +337,9 @@ export interface RuleViolation {
 
 // Type guards for runtime validation
 export function isIncomingMessage(msg: unknown): msg is IncomingMessage {
-  if (!msg || typeof msg !== "object") return false;
+  if (!msg || typeof msg !== "object") {
+    return false;
+  }
   const m = msg as Record<string, unknown>;
   return (
     typeof m.version === "number" &&
@@ -347,7 +349,9 @@ export function isIncomingMessage(msg: unknown): msg is IncomingMessage {
 }
 
 export function isOutgoingMessage(msg: unknown): msg is OutgoingMessage {
-  if (!msg || typeof msg !== "object") return false;
+  if (!msg || typeof msg !== "object") {
+    return false;
+  }
   const m = msg as Record<string, unknown>;
   return (
     typeof m.version === "number" &&
