@@ -468,9 +468,15 @@ export class GlobalFileStore {
     } catch (error) {
       if (
         error instanceof Error &&
-        (error as NodeJS.ErrnoException).code === "ENOENT"
+        ((error as NodeJS.ErrnoException).code === "ENOENT" ||
+          (error as any).code === "FileNotFound")
       ) {
         // File doesn't exist, return default by parsing empty object
+        return migrate({}, 0);
+      }
+      // Handle corrupted/empty JSON files
+      if (error instanceof SyntaxError) {
+        console.warn(`[GlobalFileStore] Invalid JSON in ${path}, resetting`);
         return migrate({}, 0);
       }
       console.error(`[GlobalFileStore] Failed to read ${path}:`, error);

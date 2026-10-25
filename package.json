@@ -27,6 +27,66 @@
       {
         "command": "droidCompanion.helloWorld",
         "title": "Droid Companion: Hello World"
+      },
+      {
+        "command": "droidCompanion.startRoutine",
+        "title": "Droid Companion: Start Routine"
+      },
+      {
+        "command": "droidCompanion.pauseRoutine",
+        "title": "Droid Companion: Pause Routine"
+      },
+      {
+        "command": "droidCompanion.resumeRoutine",
+        "title": "Droid Companion: Resume Routine"
+      },
+      {
+        "command": "droidCompanion.finishRoutine",
+        "title": "Droid Companion: Finish Routine"
+      },
+      {
+        "command": "droidCompanion.resetRoutine",
+        "title": "Droid Companion: Reset Routine"
+      },
+      {
+        "command": "droidCompanion.snoozeReminder",
+        "title": "Droid Companion: Snooze Reminder"
+      },
+      {
+        "command": "droidCompanion.dismissReminder",
+        "title": "Droid Companion: Dismiss Reminder"
+      },
+      {
+        "command": "droidCompanion.toggleTracking",
+        "title": "Droid Companion: Toggle Activity Tracking"
+      },
+      {
+        "command": "droidCompanion.openWellbeingSettings",
+        "title": "Droid Companion: Open Well-being Settings"
+      },
+      {
+        "command": "droidCompanion.scanProject",
+        "title": "Droid Companion: Scan Project"
+      },
+      {
+        "command": "droidCompanion.cleanupPreview",
+        "title": "Droid Companion: Cleanup Preview"
+      },
+      {
+        "command": "droidCompanion.confirmCleanup",
+        "title": "Droid Companion: Confirm Cleanup"
+      },
+      {
+        "command": "droidCompanion.openRepositoryRules",
+        "title": "Droid Companion: Open Repository Rules"
+      },
+      {
+        "command": "droidCompanion.focusView",
+        "title": "Droid Companion: Focus View"
+      },
+      {
+        "command": "droidCompanion.openActionWheel",
+        "title": "Droid Companion: Open Action Wheel"
       }
     ],
     "configuration": {
@@ -36,6 +96,90 @@
           "type": "boolean",
           "default": false,
           "description": "Enable optional product usage telemetry (requires VS Code telemetry to also be enabled)."
+        },
+        "droidCompanion.wellbeing.routine.workDurationMinutes": {
+          "type": "number",
+          "default": 25,
+          "minimum": 1,
+          "description": "Work duration in minutes for Pomodoro routine."
+        },
+        "droidCompanion.wellbeing.routine.breakDurationMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "Short break duration in minutes."
+        },
+        "droidCompanion.wellbeing.routine.longBreakDurationMinutes": {
+          "type": "number",
+          "default": 15,
+          "minimum": 1,
+          "description": "Long break duration in minutes."
+        },
+        "droidCompanion.wellbeing.routine.cyclesUntilLongBreak": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "description": "Number of work cycles before a long break."
+        },
+        "droidCompanion.wellbeing.reminders.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable all reminders globally."
+        },
+        "droidCompanion.wellbeing.reminders.quietHours.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable quiet hours (no reminders during this time)."
+        },
+        "droidCompanion.wellbeing.reminders.quietHours.startHour": {
+          "type": "integer",
+          "default": 22,
+          "minimum": 0,
+          "maximum": 23,
+          "description": "Quiet hours start hour (0-23)."
+        },
+        "droidCompanion.wellbeing.reminders.quietHours.startMinute": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 59,
+          "description": "Quiet hours start minute (0-59)."
+        },
+        "droidCompanion.wellbeing.reminders.quietHours.endHour": {
+          "type": "integer",
+          "default": 8,
+          "minimum": 0,
+          "maximum": 23,
+          "description": "Quiet hours end hour (0-23)."
+        },
+        "droidCompanion.wellbeing.reminders.quietHours.endMinute": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 59,
+          "description": "Quiet hours end minute (0-59)."
+        },
+        "droidCompanion.wellbeing.reminders.quietHours.timezone": {
+          "type": "string",
+          "default": "UTC",
+          "description": "IANA timezone for quiet hours."
+        },
+        "droidCompanion.wellbeing.activityTracking.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable opt-in active VS Code time estimation."
+        },
+        "droidCompanion.wellbeing.activityTracking.inactivityThresholdMinutes": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "Minutes of inactivity before pausing active time estimation."
+        },
+        "droidCompanion.retention.activityHistoryDays": {
+          "type": "number",
+          "default": 90,
+          "minimum": 1,
+          "description": "Days to retain activity history (default 90)."
         }
       }
     }

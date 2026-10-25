@@ -6,9 +6,11 @@
 import type * as vscode from "vscode";
 import { eventBus } from "../../core/event-bus";
 import type { PlatformAdapter } from "../../platform/vscode";
+import type { StorageManager } from "../../platform/storage";
 
 export function initializeTelemetry(
   platform: PlatformAdapter,
+  storage: StorageManager
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
 

@@ -8,23 +8,37 @@ import type { WebviewViewProvider } from "../../companion/webview-provider";
 import { eventBus } from "../../core/event-bus";
 import type { IncomingMessage } from "../../core/messages";
 import type { PlatformAdapter } from "../../platform/vscode";
+import type { StorageManager } from "../../platform/storage";
 
 export function initializeRepository(
   platform: PlatformAdapter,
   webview: WebviewViewProvider,
+  storage: StorageManager
 ): vscode.Disposable[] {
   const disposables: vscode.Disposable[] = [];
 
   // Register repository commands
   disposables.push(
-    platform.commands.registerCommand("droidCompanion.scanProject", () => {
+    platform.commands.registerCommand("droidCompanion.scanProject", async () => {
       console.log("[Repository] Scan project command");
     }),
   );
 
   disposables.push(
-    platform.commands.registerCommand("droidCompanion.cleanupPreview", () => {
+    platform.commands.registerCommand("droidCompanion.cleanupPreview", async () => {
       console.log("[Repository] Cleanup preview command");
+    }),
+  );
+
+  disposables.push(
+    platform.commands.registerCommand("droidCompanion.confirmCleanup", async () => {
+      console.log("[Repository] Confirm cleanup command");
+    }),
+  );
+
+  disposables.push(
+    platform.commands.registerCommand("droidCompanion.openRepositoryRules", async () => {
+      console.log("[Repository] Open repository rules");
     }),
   );
 
