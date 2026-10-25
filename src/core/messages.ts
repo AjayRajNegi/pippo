@@ -1,371 +1,596 @@
 /**
  * Core message protocol for webview <-> extension host communication.
- * All messages are versioned and validated at runtime.
+ * All messages are versioned and validated at runtime using Zod.
  */
+
+import { z } from "zod";
 
 // Version of the message protocol. Increment when making breaking changes.
 export const MESSAGE_PROTOCOL_VERSION = 1;
 
-// Base message interface
-export interface BaseMessage {
-  readonly version: number;
-  readonly type: string;
-  readonly requestId?: string; // For request-response correlation
-}
+// ============================================================================
+// Zod Schemas for Runtime Validation
+// ============================================================================
+
+// Base schema
+const BaseMessageSchema = z.object({
+	version: z.literal(MESSAGE_PROTOCOL_VERSION),
+	type: z.string(),
+	requestId: z.string().optional(),
+});
+
+// Direction discriminators
+const WebviewToExtensionDirection = z.literal("webview-to-extension");
+const ExtensionToWebviewDirection = z.literal("extension-to-webview");
 
 // Webview -> Extension host messages (user intents)
-export interface WebviewToExtensionMessage extends BaseMessage {
-  readonly direction: "webview-to-extension";
-}
+const OpenFeatureMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("openFeature"),
+	feature: z.enum([
+		"routine",
+		"reminders",
+		"reports",
+		"projectScan",
+		"cleanup",
+		"rules",
+	]),
+});
 
-export interface OpenFeatureMessage extends WebviewToExtensionMessage {
-  readonly type: "openFeature";
-  readonly feature:
-    "routine" | "reminders" | "reports" | "projectScan" | "cleanup" | "rules";
-}
+const RoutineActionMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("routineAction"),
+	action: z.enum(["start", "pause", "resume", "finish", "reset"]),
+});
 
-export interface RoutineActionMessage extends WebviewToExtensionMessage {
-  readonly type: "routineAction";
-  readonly action: "start" | "pause" | "resume" | "finish" | "reset";
-}
+const ReminderActionMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("reminderAction"),
+	reminderId: z.string(),
+	action: z.enum([
+		"snooze",
+		"dismiss",
+		"markDone",
+		"pause",
+		"enable",
+		"disable",
+	]),
+	snoozeMinutes: z.number().int().positive().optional(),
+});
 
-export interface ReminderActionMessage extends WebviewToExtensionMessage {
-  readonly type: "reminderAction";
-  readonly reminderId: string;
-  readonly action:
-    "snooze" | "dismiss" | "markDone" | "pause" | "enable" | "disable";
-  readonly snoozeMinutes?: number;
-}
+const CreateReminderMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("createReminder"),
+	text: z.string().min(1).max(500),
+	intervalMinutes: z.number().int().positive(),
+});
 
-export interface CreateReminderMessage extends WebviewToExtensionMessage {
-  readonly type: "createReminder";
-  readonly text: string;
-  readonly intervalMinutes: number;
-}
+const UpdateReminderMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("updateReminder"),
+	reminderId: z.string(),
+	text: z.string().min(1).max(500).optional(),
+	intervalMinutes: z.number().int().positive().optional(),
+	enabled: z.boolean().optional(),
+});
 
-export interface UpdateReminderMessage extends WebviewToExtensionMessage {
-  readonly type: "updateReminder";
-  readonly reminderId: string;
-  readonly text?: string;
-  readonly intervalMinutes?: number;
-  readonly enabled?: boolean;
-}
+const DeleteReminderMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("deleteReminder"),
+	reminderId: z.string(),
+});
 
-export interface DeleteReminderMessage extends WebviewToExtensionMessage {
-  readonly type: "deleteReminder";
-  readonly reminderId: string;
-}
+const ToggleTrackingMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("toggleTracking"),
+	enabled: z.boolean(),
+});
 
-export interface ToggleTrackingMessage extends WebviewToExtensionMessage {
-  readonly type: "toggleTracking";
-  readonly enabled: boolean;
-}
+const RequestScanMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("requestScan"),
+});
 
-export interface RequestScanMessage extends WebviewToExtensionMessage {
-  readonly type: "requestScan";
-}
+const RequestCleanupPreviewMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("requestCleanupPreview"),
+});
 
-export interface RequestCleanupPreviewMessage extends WebviewToExtensionMessage {
-  readonly type: "requestCleanupPreview";
-}
+const ConfirmCleanupMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("confirmCleanup"),
+	targets: z.array(z.string()).min(1),
+});
 
-export interface ConfirmCleanupMessage extends WebviewToExtensionMessage {
-  readonly type: "confirmCleanup";
-  readonly targets: readonly string[];
-}
+const CreateRuleMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("createRule"),
+	rule: z.object({
+		id: z.string(),
+		name: z.string().min(1).max(100),
+		pattern: z.string().min(1),
+		condition: z
+			.object({
+				type: z.enum(["extension", "directory", "name-pattern"]),
+				value: z.string(),
+			})
+			.optional(),
+		description: z.string().max(500),
+		severity: z.enum(["info", "warning", "error"]),
+		createdAt: z.number().int().positive(),
+		updatedAt: z.number().int().positive(),
+	}),
+});
 
-export interface CreateRuleMessage extends WebviewToExtensionMessage {
-  readonly type: "createRule";
-  readonly rule: RuleDefinition;
-}
+const UpdateRuleMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("updateRule"),
+	ruleId: z.string(),
+	rule: z
+		.object({
+			name: z.string().min(1).max(100).optional(),
+			pattern: z.string().min(1).optional(),
+			condition: z
+				.object({
+					type: z.enum(["extension", "directory", "name-pattern"]),
+					value: z.string(),
+				})
+				.optional(),
+			description: z.string().max(500).optional(),
+			severity: z.enum(["info", "warning", "error"]).optional(),
+			updatedAt: z.number().int().positive().optional(),
+		})
+		.partial(),
+});
 
-export interface UpdateRuleMessage extends WebviewToExtensionMessage {
-  readonly type: "updateRule";
-  readonly ruleId: string;
-  readonly rule: Partial<RuleDefinition>;
-}
+const DeleteRuleMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("deleteRule"),
+	ruleId: z.string(),
+});
 
-export interface DeleteRuleMessage extends WebviewToExtensionMessage {
-  readonly type: "deleteRule";
-  readonly ruleId: string;
-}
+const InferRulesMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("inferRules"),
+});
 
-export interface InferRulesMessage extends WebviewToExtensionMessage {
-  readonly type: "inferRules";
-}
+const ClearHistoryMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("clearHistory"),
+	confirm: z.boolean(),
+});
 
-export interface ClearHistoryMessage extends WebviewToExtensionMessage {
-  readonly type: "clearHistory";
-  readonly confirm: boolean;
-}
-
-export interface GetStateMessage extends WebviewToExtensionMessage {
-  readonly type: "getState";
-}
+const GetStateMessageSchema = BaseMessageSchema.extend({
+	direction: WebviewToExtensionDirection,
+	type: z.literal("getState"),
+});
 
 // Extension -> Webview messages (display state, updates)
-export interface ExtensionToWebviewMessage extends BaseMessage {
-  readonly direction: "extension-to-webview";
-}
+const InitialStateMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("initialState"),
+	state: z.object({
+		routine: z.object({
+			status: z.enum(["idle", "running", "paused", "finished"]),
+			mode: z.enum(["work", "break", "longBreak"]),
+			workDurationMinutes: z.number().int().positive(),
+			breakDurationMinutes: z.number().int().positive(),
+			longBreakDurationMinutes: z.number().int().positive(),
+			cyclesUntilLongBreak: z.number().int().positive(),
+			completedCycles: z.number().int().nonnegative(),
+			startedAt: z.number().int().nonnegative().nullable(),
+			pausedAt: z.number().int().nonnegative().nullable(),
+			elapsedMs: z.number().int().nonnegative(),
+			endsAt: z.number().int().nonnegative().nullable(),
+		}),
+		reminders: z.array(
+			z.object({
+				id: z.string(),
+				text: z.string(),
+				intervalMinutes: z.number().int().positive(),
+				enabled: z.boolean(),
+				nextTriggerAt: z.number().int().nonnegative().nullable(),
+				lastTriggeredAt: z.number().int().nonnegative().nullable(),
+				snoozedUntil: z.number().int().nonnegative().nullable(),
+				isOverdue: z.boolean(),
+			}),
+		),
+		trackingEnabled: z.boolean(),
+		quietHours: z
+			.object({
+				startHour: z.number().int().min(0).max(23),
+				startMinute: z.number().int().min(0).max(59),
+				endHour: z.number().int().min(0).max(23),
+				endMinute: z.number().int().min(0).max(59),
+				timezone: z.string(),
+			})
+			.nullable(),
+	}),
+});
 
-export interface InitialStateMessage extends ExtensionToWebviewMessage {
-  readonly type: "initialState";
-  readonly state: ExtensionState;
-}
+const StateUpdateMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("stateUpdate"),
+	state: z.object({
+		routine: z
+			.object({
+				status: z.enum(["idle", "running", "paused", "finished"]),
+				mode: z.enum(["work", "break", "longBreak"]),
+				workDurationMinutes: z.number().int().positive(),
+				breakDurationMinutes: z.number().int().positive(),
+				longBreakDurationMinutes: z.number().int().positive(),
+				cyclesUntilLongBreak: z.number().int().positive(),
+				completedCycles: z.number().int().nonnegative(),
+				startedAt: z.number().int().nonnegative().nullable(),
+				pausedAt: z.number().int().nonnegative().nullable(),
+				elapsedMs: z.number().int().nonnegative(),
+				endsAt: z.number().int().nonnegative().nullable(),
+			})
+			.optional(),
+		reminders: z
+			.array(
+				z.object({
+					id: z.string(),
+					text: z.string(),
+					intervalMinutes: z.number().int().positive(),
+					enabled: z.boolean(),
+					nextTriggerAt: z.number().int().nonnegative().nullable(),
+					lastTriggeredAt: z.number().int().nonnegative().nullable(),
+					snoozedUntil: z.number().int().nonnegative().nullable(),
+					isOverdue: z.boolean(),
+				}),
+			)
+			.optional(),
+		trackingEnabled: z.boolean().optional(),
+		quietHours: z
+			.object({
+				startHour: z.number().int().min(0).max(23),
+				startMinute: z.number().int().min(0).max(59),
+				endHour: z.number().int().min(0).max(23),
+				endMinute: z.number().int().min(0).max(59),
+				timezone: z.string(),
+			})
+			.nullable()
+			.optional(),
+	}),
+});
 
-export interface StateUpdateMessage extends ExtensionToWebviewMessage {
-  readonly type: "stateUpdate";
-  readonly state: Partial<ExtensionState>;
-}
+const RoutineStateMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("routineState"),
+	routine: z.object({
+		status: z.enum(["idle", "running", "paused", "finished"]),
+		mode: z.enum(["work", "break", "longBreak"]),
+		workDurationMinutes: z.number().int().positive(),
+		breakDurationMinutes: z.number().int().positive(),
+		longBreakDurationMinutes: z.number().int().positive(),
+		cyclesUntilLongBreak: z.number().int().positive(),
+		completedCycles: z.number().int().nonnegative(),
+		startedAt: z.number().int().nonnegative().nullable(),
+		pausedAt: z.number().int().nonnegative().nullable(),
+		elapsedMs: z.number().int().nonnegative(),
+		endsAt: z.number().int().nonnegative().nullable(),
+	}),
+});
 
-export interface RoutineStateMessage extends ExtensionToWebviewMessage {
-  readonly type: "routineState";
-  readonly routine: RoutineState;
-}
+const ReminderUpdateMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("reminderUpdate"),
+	reminders: z.array(
+		z.object({
+			id: z.string(),
+			text: z.string(),
+			intervalMinutes: z.number().int().positive(),
+			enabled: z.boolean(),
+			nextTriggerAt: z.number().int().nonnegative().nullable(),
+			lastTriggeredAt: z.number().int().nonnegative().nullable(),
+			snoozedUntil: z.number().int().nonnegative().nullable(),
+			isOverdue: z.boolean(),
+		}),
+	),
+	triggered: z.array(z.string()).optional(),
+});
 
-export interface ReminderUpdateMessage extends ExtensionToWebviewMessage {
-  readonly type: "reminderUpdate";
-  readonly reminders: readonly ReminderState[];
-  readonly triggered?: readonly string[]; // IDs of reminders that just triggered
-}
+const ReportDataMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("reportData"),
+	daily: z
+		.object({
+			date: z.string(),
+			estimatedActiveMinutes: z.number().int().nonnegative(),
+			sessionCount: z.number().int().nonnegative(),
+			completedWorkCycles: z.number().int().nonnegative(),
+			completedBreakCycles: z.number().int().nonnegative(),
+			reminderOutcomes: z.array(
+				z.object({
+					reminderId: z.string(),
+					reminderText: z.string(),
+					completed: z.boolean(),
+					snoozedCount: z.number().int().nonnegative(),
+					dismissedCount: z.number().int().nonnegative(),
+				}),
+			),
+		})
+		.nullable(),
+	weekly: z
+		.object({
+			weekStart: z.string(),
+			dailyBreakdown: z.array(
+				z.object({
+					date: z.string(),
+					estimatedActiveMinutes: z.number().int().nonnegative(),
+					sessionCount: z.number().int().nonnegative(),
+					completedWorkCycles: z.number().int().nonnegative(),
+					completedBreakCycles: z.number().int().nonnegative(),
+					reminderOutcomes: z.array(
+						z.object({
+							reminderId: z.string(),
+							reminderText: z.string(),
+							completed: z.boolean(),
+							snoozedCount: z.number().int().nonnegative(),
+							dismissedCount: z.number().int().nonnegative(),
+						}),
+					),
+				}),
+			),
+			totalActiveMinutes: z.number().int().nonnegative(),
+			averageDailyMinutes: z.number().nonnegative(),
+			totalWorkCycles: z.number().int().nonnegative(),
+			totalBreakCycles: z.number().int().nonnegative(),
+			trend: z.enum(["up", "down", "stable", "insufficient-data"]),
+		})
+		.nullable(),
+});
 
-export interface ReportDataMessage extends ExtensionToWebviewMessage {
-  readonly type: "reportData";
-  readonly daily: DailyReport | null;
-  readonly weekly: WeeklyReport | null;
-}
+const ScanResultMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("scanResult"),
+	tree: z.object({
+		name: z.string(),
+		path: z.string(),
+		type: z.enum(["file", "directory"]),
+		children: z
+			.array(
+				z.object({
+					name: z.string(),
+					path: z.string(),
+					type: z.enum(["file", "directory"]),
+					children: z.array(z.unknown()).optional(),
+					isExcluded: z.boolean().optional(),
+					diagnosticCount: z.number().int().nonnegative().optional(),
+				}),
+			)
+			.optional(),
+		isExcluded: z.boolean().optional(),
+		diagnosticCount: z.number().int().nonnegative().optional(),
+	}),
+	diagnostics: z.array(
+		z.object({
+			id: z.string(),
+			category: z.enum([
+				"generated",
+				"missing-ignore",
+				"config-contradiction",
+				"info",
+			]),
+			severity: z.enum(["info", "warning", "error"]),
+			message: z.string(),
+			evidencePath: z.string().optional(),
+			suggestedAction: z.string().optional(),
+			dismissible: z.boolean(),
+		}),
+	),
+});
 
-export interface ScanResultMessage extends ExtensionToWebviewMessage {
-  readonly type: "scanResult";
-  readonly tree: ProjectTreeNode;
-  readonly diagnostics: readonly Diagnostic[];
-}
+const CleanupPreviewMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("cleanupPreview"),
+	targets: z.array(
+		z.object({
+			path: z.string(),
+			name: z.string(),
+			estimatedSizeBytes: z.number().int().nonnegative().nullable(),
+			type: z.enum(["generated", "dependencies"]),
+		}),
+	),
+});
 
-export interface CleanupPreviewMessage extends ExtensionToWebviewMessage {
-  readonly type: "cleanupPreview";
-  readonly targets: readonly CleanupTarget[];
-}
+const CleanupResultMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("cleanupResult"),
+	results: z.array(
+		z.object({
+			path: z.string(),
+			success: z.boolean(),
+			error: z.string().optional(),
+			skipped: z.boolean().optional(),
+			skipReason: z.string().optional(),
+		}),
+	),
+});
 
-export interface CleanupResultMessage extends ExtensionToWebviewMessage {
-  readonly type: "cleanupResult";
-  readonly results: readonly CleanupResult[];
-}
+const RulesListMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("rulesList"),
+	rules: z.array(
+		z.object({
+			id: z.string(),
+			name: z.string(),
+			pattern: z.string(),
+			condition: z
+				.object({
+					type: z.enum(["extension", "directory", "name-pattern"]),
+					value: z.string(),
+				})
+				.optional(),
+			description: z.string(),
+			severity: z.enum(["info", "warning", "error"]),
+			createdAt: z.number().int().positive(),
+			updatedAt: z.number().int().positive(),
+			violations: z.array(
+				z.object({
+					filePath: z.string(),
+					message: z.string(),
+					suggestedFix: z.string().optional(),
+				}),
+			),
+		}),
+	),
+});
 
-export interface RulesListMessage extends ExtensionToWebviewMessage {
-  readonly type: "rulesList";
-  readonly rules: readonly RuleState[];
-}
+const InferredRulesMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("inferredRules"),
+	rules: z.array(
+		z.object({
+			id: z.string(),
+			name: z.string(),
+			pattern: z.string(),
+			condition: z
+				.object({
+					type: z.enum(["extension", "directory", "name-pattern"]),
+					value: z.string(),
+				})
+				.optional(),
+			description: z.string(),
+			severity: z.enum(["info", "warning", "error"]),
+			createdAt: z.number().int().positive(),
+			updatedAt: z.number().int().positive(),
+		}),
+	),
+});
 
-export interface InferredRulesMessage extends ExtensionToWebviewMessage {
-  readonly type: "inferredRules";
-  readonly rules: readonly RuleDefinition[];
-}
+const ErrorMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("error"),
+	code: z.string(),
+	message: z.string(),
+});
 
-export interface ErrorMessage extends ExtensionToWebviewMessage {
-  readonly type: "error";
-  readonly code: string;
-  readonly message: string;
-}
+const LogMessageSchema = BaseMessageSchema.extend({
+	direction: ExtensionToWebviewDirection,
+	type: z.literal("log"),
+	level: z.enum(["info", "warn", "error"]),
+	message: z.string(),
+});
 
-export interface LogMessage extends ExtensionToWebviewMessage {
-  readonly type: "log";
-  readonly level: "info" | "warn" | "error";
-  readonly message: string;
-}
+// Union schemas for validation
+export const IncomingMessageSchema = z.discriminatedUnion("type", [
+	OpenFeatureMessageSchema,
+	RoutineActionMessageSchema,
+	ReminderActionMessageSchema,
+	CreateReminderMessageSchema,
+	UpdateReminderMessageSchema,
+	DeleteReminderMessageSchema,
+	ToggleTrackingMessageSchema,
+	RequestScanMessageSchema,
+	RequestCleanupPreviewMessageSchema,
+	ConfirmCleanupMessageSchema,
+	CreateRuleMessageSchema,
+	UpdateRuleMessageSchema,
+	DeleteRuleMessageSchema,
+	InferRulesMessageSchema,
+	ClearHistoryMessageSchema,
+	GetStateMessageSchema,
+]);
 
-// Union types for validation
-export type IncomingMessage =
-  | OpenFeatureMessage
-  | RoutineActionMessage
-  | ReminderActionMessage
-  | CreateReminderMessage
-  | UpdateReminderMessage
-  | DeleteReminderMessage
-  | ToggleTrackingMessage
-  | RequestScanMessage
-  | RequestCleanupPreviewMessage
-  | ConfirmCleanupMessage
-  | CreateRuleMessage
-  | UpdateRuleMessage
-  | DeleteRuleMessage
-  | InferRulesMessage
-  | ClearHistoryMessage
-  | GetStateMessage;
+export const OutgoingMessageSchema = z.discriminatedUnion("type", [
+	InitialStateMessageSchema,
+	StateUpdateMessageSchema,
+	RoutineStateMessageSchema,
+	ReminderUpdateMessageSchema,
+	ReportDataMessageSchema,
+	ScanResultMessageSchema,
+	CleanupPreviewMessageSchema,
+	CleanupResultMessageSchema,
+	RulesListMessageSchema,
+	InferredRulesMessageSchema,
+	ErrorMessageSchema,
+	LogMessageSchema,
+]);
 
-export type OutgoingMessage =
-  | InitialStateMessage
-  | StateUpdateMessage
-  | RoutineStateMessage
-  | ReminderUpdateMessage
-  | ReportDataMessage
-  | ScanResultMessage
-  | CleanupPreviewMessage
-  | CleanupResultMessage
-  | RulesListMessage
-  | InferredRulesMessage
-  | ErrorMessage
-  | LogMessage;
+// ============================================================================
+// TypeScript Types (inferred from Zod schemas)
+// ============================================================================
+
+export type IncomingMessage = z.infer<typeof IncomingMessageSchema>;
+export type OutgoingMessage = z.infer<typeof OutgoingMessageSchema>;
 
 // State types
-export interface ExtensionState {
-  readonly routine: RoutineState;
-  readonly reminders: readonly ReminderState[];
-  readonly trackingEnabled: boolean;
-  readonly quietHours: QuietHours | null;
-}
+export type ExtensionState = z.infer<typeof InitialStateMessageSchema>["state"];
+export type RoutineState = z.infer<typeof RoutineStateMessageSchema>["routine"];
+export type ReminderState = z.infer<
+	typeof ReminderUpdateMessageSchema
+>["reminders"][number];
+export type QuietHours = ExtensionState["quietHours"];
 
-export interface RoutineState {
-  readonly status: "idle" | "running" | "paused" | "finished";
-  readonly mode: "work" | "break" | "longBreak";
-  readonly workDurationMinutes: number;
-  readonly breakDurationMinutes: number;
-  readonly longBreakDurationMinutes: number;
-  readonly cyclesUntilLongBreak: number;
-  readonly completedCycles: number;
-  readonly startedAt: number | null; // timestamp
-  readonly pausedAt: number | null; // timestamp
-  readonly elapsedMs: number;
-  readonly endsAt: number | null; // timestamp
-}
+export type DailyReport = z.infer<typeof ReportDataMessageSchema>["daily"];
+export type WeeklyReport = z.infer<typeof ReportDataMessageSchema>["weekly"];
 
-export interface ReminderState {
-  readonly id: string;
-  readonly text: string;
-  readonly intervalMinutes: number;
-  readonly enabled: boolean;
-  readonly nextTriggerAt: number | null; // timestamp
-  readonly lastTriggeredAt: number | null; // timestamp
-  readonly snoozedUntil: number | null; // timestamp
-  readonly isOverdue: boolean;
-}
+export type ReminderOutcome = NonNullable<DailyReport>["reminderOutcomes"][number];
 
-export interface QuietHours {
-  readonly startHour: number; // 0-23
-  readonly startMinute: number; // 0-59
-  readonly endHour: number; // 0-23
-  readonly endMinute: number; // 0-59
-  readonly timezone: string; // IANA timezone
-}
+export type ProjectTreeNode = z.infer<typeof ScanResultMessageSchema>["tree"];
+export type Diagnostic = z.infer<
+	typeof ScanResultMessageSchema
+>["diagnostics"][number];
+export type CleanupTarget = z.infer<
+	typeof CleanupPreviewMessageSchema
+>["targets"][number];
+export type CleanupResult = z.infer<
+	typeof CleanupResultMessageSchema
+>["results"][number];
 
-export interface DailyReport {
-  readonly date: string; // YYYY-MM-DD in local timezone
-  readonly estimatedActiveMinutes: number;
-  readonly sessionCount: number;
-  readonly completedWorkCycles: number;
-  readonly completedBreakCycles: number;
-  readonly reminderOutcomes: ReminderOutcome[];
-}
+export type RuleDefinition = z.infer<typeof CreateRuleMessageSchema>["rule"];
+export type RuleCondition = RuleDefinition["condition"];
+export type RuleState = z.infer<typeof RulesListMessageSchema>["rules"][number];
+export type RuleViolation = RuleState["violations"][number];
 
-export interface ReminderOutcome {
-  readonly reminderId: string;
-  readonly reminderText: string;
-  readonly completed: boolean;
-  readonly snoozedCount: number;
-  readonly dismissedCount: number;
-}
+// Individual message types for external use
+export type InitialStateMessage = z.infer<typeof InitialStateMessageSchema>;
+export type StateUpdateMessage = z.infer<typeof StateUpdateMessageSchema>;
+export type RoutineStateMessage = z.infer<typeof RoutineStateMessageSchema>;
+export type ReminderUpdateMessage = z.infer<typeof ReminderUpdateMessageSchema>;
+export type ReportDataMessage = z.infer<typeof ReportDataMessageSchema>;
+export type ScanResultMessage = z.infer<typeof ScanResultMessageSchema>;
+export type CleanupPreviewMessage = z.infer<typeof CleanupPreviewMessageSchema>;
+export type CleanupResultMessage = z.infer<typeof CleanupResultMessageSchema>;
+export type RulesListMessage = z.infer<typeof RulesListMessageSchema>;
+export type InferredRulesMessage = z.infer<typeof InferredRulesMessageSchema>;
+export type ErrorMessage = z.infer<typeof ErrorMessageSchema>;
+export type LogMessage = z.infer<typeof LogMessageSchema>;
 
-export interface WeeklyReport {
-  readonly weekStart: string; // YYYY-MM-DD (Monday)
-  readonly dailyBreakdown: readonly DailyReport[];
-  readonly totalActiveMinutes: number;
-  readonly averageDailyMinutes: number;
-  readonly totalWorkCycles: number;
-  readonly totalBreakCycles: number;
-  readonly trend: "up" | "down" | "stable" | "insufficient-data";
-}
-
-export interface ProjectTreeNode {
-  readonly name: string;
-  readonly path: string; // relative to workspace root
-  readonly type: "file" | "directory";
-  readonly children?: readonly ProjectTreeNode[];
-  readonly isExcluded?: boolean;
-  readonly diagnosticCount?: number;
-}
-
-export interface Diagnostic {
-  readonly id: string;
-  readonly category:
-    "generated" | "missing-ignore" | "config-contradiction" | "info";
-  readonly severity: "info" | "warning" | "error";
-  readonly message: string;
-  readonly evidencePath?: string; // relative path
-  readonly suggestedAction?: string;
-  readonly dismissible: boolean;
-}
-
-export interface CleanupTarget {
-  readonly path: string; // relative to workspace root
-  readonly name: string;
-  readonly estimatedSizeBytes: number | null; // null if unknown
-  readonly type: "generated" | "dependencies";
-}
-
-export interface CleanupResult {
-  readonly path: string;
-  readonly success: boolean;
-  readonly error?: string;
-  readonly skipped?: boolean;
-  readonly skipReason?: string;
-}
-
-export interface RuleDefinition {
-  readonly id: string;
-  readonly name: string;
-  readonly pattern: string; // glob pattern
-  readonly condition?: RuleCondition;
-  readonly description: string;
-  readonly severity: "info" | "warning" | "error";
-  readonly createdAt: number; // timestamp
-  readonly updatedAt: number; // timestamp
-}
-
-export interface RuleCondition {
-  readonly type: "extension" | "directory" | "name-pattern";
-  readonly value: string;
-}
-
-export interface RuleState extends RuleDefinition {
-  readonly violations: readonly RuleViolation[];
-}
-
-export interface RuleViolation {
-  readonly filePath: string;
-  readonly message: string;
-  readonly suggestedFix?: string;
-}
-
-// Type guards for runtime validation
-export function isIncomingMessage(msg: unknown): msg is IncomingMessage {
-  if (!msg || typeof msg !== "object") {
-    return false;
-  }
-  const m = msg as Record<string, unknown>;
-  return (
-    typeof m.version === "number" &&
-    typeof m.type === "string" &&
-    m.direction === "webview-to-extension"
-  );
-}
-
-export function isOutgoingMessage(msg: unknown): msg is OutgoingMessage {
-  if (!msg || typeof msg !== "object") {
-    return false;
-  }
-  const m = msg as Record<string, unknown>;
-  return (
-    typeof m.version === "number" &&
-    typeof m.type === "string" &&
-    m.direction === "extension-to-webview"
-  );
-}
+// ============================================================================
+// Validation Functions
+// ============================================================================
 
 export function validateIncomingMessage(msg: unknown): IncomingMessage {
-  if (!isIncomingMessage(msg)) {
-    throw new Error("Invalid incoming message format");
-  }
-  if (msg.version !== MESSAGE_PROTOCOL_VERSION) {
-    throw new Error(`Unsupported protocol version: ${msg.version}`);
-  }
-  return msg;
+	return IncomingMessageSchema.parse(msg);
+}
+
+export function validateOutgoingMessage(msg: unknown): OutgoingMessage {
+	return OutgoingMessageSchema.parse(msg);
+}
+
+export function safeValidateIncomingMessage(
+	msg: unknown,
+):
+	| { success: true; data: IncomingMessage }
+	| { success: false; error: z.ZodError } {
+	const result = IncomingMessageSchema.safeParse(msg);
+	if (result.success) {
+		return { success: true, data: result.data };
+	}
+	return { success: false, error: result.error };
+}
+
+export function safeValidateOutgoingMessage(
+	msg: unknown,
+):
+	| { success: true; data: OutgoingMessage }
+	| { success: false; error: z.ZodError } {
+	const result = OutgoingMessageSchema.safeParse(msg);
+	if (result.success) {
+		return { success: true, data: result.data };
+	}
+	return { success: false, error: result.error };
 }

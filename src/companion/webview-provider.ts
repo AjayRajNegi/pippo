@@ -127,7 +127,7 @@ export function createWebviewProvider(
 
   const setRoutineState = (routine: RoutineState) => updateState({ routine });
   const setReminders = (reminders: readonly ReminderState[]) =>
-    updateState({ reminders });
+    updateState({ reminders: [...reminders] });
   const setTrackingEnabled = (enabled: boolean) =>
     updateState({ trackingEnabled: enabled });
   const setQuietHours = (quietHours: QuietHours | null) =>
@@ -146,12 +146,12 @@ export function createWebviewProvider(
     triggered?: readonly string[],
   ) => {
     sendMessage({
-      version: MESSAGE_PROTOCOL_VERSION,
-      type: "reminderUpdate",
-      direction: "extension-to-webview",
-      reminders,
-      triggered,
-    });
+					version: MESSAGE_PROTOCOL_VERSION,
+					type: "reminderUpdate",
+					direction: "extension-to-webview",
+					reminders: [...reminders],
+					triggered: triggered ? [...triggered] : undefined,
+				});
   };
   const sendReports = (
     daily: DailyReport | null,
@@ -170,27 +170,27 @@ export function createWebviewProvider(
     diagnostics: readonly Diagnostic[],
   ) => {
     sendMessage({
-      version: MESSAGE_PROTOCOL_VERSION,
-      type: "scanResult",
-      direction: "extension-to-webview",
-      tree,
-      diagnostics,
-    });
+					version: MESSAGE_PROTOCOL_VERSION,
+					type: "scanResult",
+					direction: "extension-to-webview",
+					tree,
+					diagnostics: [...diagnostics],
+				});
   };
   const sendCleanupPreview = (targets: readonly CleanupTarget[]) => {
     sendMessage({
-      version: MESSAGE_PROTOCOL_VERSION,
-      type: "cleanupPreview",
-      direction: "extension-to-webview",
-      targets,
-    });
+					version: MESSAGE_PROTOCOL_VERSION,
+					type: "cleanupPreview",
+					direction: "extension-to-webview",
+					targets: [...targets],
+				});
   };
   const sendCleanupResult = (results: readonly CleanupResult[]) => {
     sendMessage({
       version: MESSAGE_PROTOCOL_VERSION,
       type: "cleanupResult",
       direction: "extension-to-webview",
-      results,
+      results: [...results],
     });
   };
   const sendRulesList = (rules: readonly RuleState[]) => {
@@ -198,7 +198,7 @@ export function createWebviewProvider(
       version: MESSAGE_PROTOCOL_VERSION,
       type: "rulesList",
       direction: "extension-to-webview",
-      rules,
+      rules: [...rules],
     });
   };
   const sendInferredRules = (rules: readonly RuleDefinition[]) => {
@@ -206,7 +206,7 @@ export function createWebviewProvider(
       version: MESSAGE_PROTOCOL_VERSION,
       type: "inferredRules",
       direction: "extension-to-webview",
-      rules,
+      rules: [...rules],
     });
   };
   const sendError = (code: string, message: string) => {
